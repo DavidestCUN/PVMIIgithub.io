@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Interactivo: Matriz de Calidad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: He diseñado una SPA no lineal con cinco secciones navegables: Inicio, La Matriz, Proceso, Impacto, Futuro, Contactos y Encuesta. Esta estructura transforma el contenido secuencial de las diapositivas en áreas temáticas interconectadas. Este enfoque mejora la usabilidad al permitir que los usuarios (ya sean stakeholders o miembros del equipo) exploren libremente la información que más les interese, como profundizar en los criterios de la matriz o visualizar directamente los beneficios en la sección de impacto, en lugar de seguir un camino rígido. -->
+    <!-- Visualization & Content Choices: Report Info -> Goal -> Viz/Method -> Interaction -> Justification. 1. Definición de la Matriz -> Organizar -> Rejilla Interactiva con paneles de detalle (HTML/JS) -> Clic para expandir -> Permite una exploración profunda pero sin abrumar. 2. Proceso de Aplicación -> Organizar/Informar -> Diagrama de Flujo visual (HTML/Tailwind CSS) -> Hover/Clic para resaltar -> Clarifica una secuencia de pasos de forma más intuitiva que una lista. 3. Resultados/Tendencias -> Comparar/Mostrar Cambio -> Gráficos de Líneas y Radar (Chart.js/Canvas) -> Tooltips y datos dinámicos -> Cuantifica los beneficios y el impacto de la matriz de forma visualmente atractiva y fácil de entender. 4. Beneficios -> Informar -> Tarjetas destacadas (HTML/CSS) -> Sin interacción -> Presenta los beneficios clave de forma rápida y digerible. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #4A4A4A;
+        }
+
+        .nav-link {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .nav-link.active {
+            color: #C86A3B;
+            border-bottom-color: #C86A3B;
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+
+        .flowchart-step {
+            transition: all 0.3s ease;
+        }
+
+        .flowchart-line {
+            flex-grow: 1;
+            height: 2px;
+            background-color: #D1D5DB;
+        }
+
+        .criterion-card {
+            transition: all 0.3s ease-in-out;
+            cursor: pointer;
+        }
+
+        .criterion-card.active {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background-color: #FFF7F2;
+            border-color: #C86A3B;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+            position: relative;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #C86A3B;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <img src="http://googleusercontent.com/file_content/1"
+                        alt="Logo de SofCal Matriz de Calidad para Call Center" class="h-8 w-auto mr-2 rounded-md">
+                    <h1 class="text-xl font-bold text-gray-700">Matriz de Calidad</h1>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#inicio"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">Inicio</a>
+                        <a href="#matriz"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">La
+                            Matriz</a>
+                        <a href="#proceso"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">Proceso</a>
+                        <a href="#impacto"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">Impacto</a>
+                        <a href="#futuro"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">Futuro</a>
+                        <a href="#contactos"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">Contactos</a>
+                        <a href="#encuesta"
+                            class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-[#C86A3B]">Encuesta</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+
+        <section id="inicio" class="content-section active">
+            <div class="text-center py-16">
+                <h2 class="text-base font-semibold text-[#C86A3B] tracking-wide uppercase">SofCal</h2>
+                <p class="mt-2 text-4xl font-extrabold text-gray-800 tracking-tight sm:text-5xl">Asegurando la
+                    Excelencia en Cada Entrega</p>
+                <div class="mt-8 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-white p-8 rounded-lg shadow-md text-left">
+                        <h3 class="text-2xl font-bold text-gray-800">El Desafío</h3>
+                        <p class="mt-4 text-gray-600">En proyectos complejos, mantener una calidad consistente y
+                            objetiva en todos los entregables es un reto. La falta de criterios estandarizados puede
+                            llevar a retrabajos, inconsistencias y una percepción subjetiva del cumplimiento.</p>
+                    </div>
+                    <div class="bg-[#2D4263] text-white p-8 rounded-lg shadow-md text-left">
+                        <h3 class="text-2xl font-bold">La Solución</h3>
+                        <p class="mt-4 text-gray-200">Implementamos una Matriz de Calidad: una herramienta sistemática y
+                            transparente que define, mide y evalúa el cumplimiento de los estándares de calidad del
+                            proyecto, garantizando consistencia y objetividad.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="matriz" class="content-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-800">Explore la Matriz de Calidad</h2>
+                <p class="mt-2 max-w-2xl mx-auto text-lg text-gray-600">Haga clic en cada criterio para ver su
+                    descripción detallada, métricas y escala de evaluación. Esta es la herramienta central que usamos
+                    para medir la calidad de forma objetiva.</p>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1">
+                    <div id="criteria-list" class="space-y-4">
+                    </div>
+                </div>
+                <div class="lg:col-span-2">
+                    <div id="criteria-details" class="bg-white p-8 rounded-lg shadow-lg sticky top-24">
+                        <p class="text-gray-500 text-center">Seleccione un criterio para ver los detalles.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="proceso" class="content-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-800">Nuestro Proceso de Aplicación</h2>
+                <p class="mt-2 max-w-2xl mx-auto text-lg text-gray-600">La matriz se integra en nuestro ciclo de vida de
+                    desarrollo a través de un proceso claro y definido en 5 pasos. Esto asegura que la calidad no es una
+                    ocurrencia tardía, sino una parte fundamental de nuestro flujo de trabajo.</p>
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0 w-full" id="process-flow">
+            </div>
+        </section>
+
+        <section id="impacto" class="content-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-800">Impacto y Valor Añadido</h2>
+                <p class="mt-2 max-w-2xl mx-auto text-lg text-gray-600">El uso de la matriz no es solo un ejercicio
+                    teórico; genera resultados tangibles que benefician al proyecto, al equipo y a los stakeholders.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h4 class="font-bold text-lg text-[#2D4263]">Para el Proyecto</h4>
+                    <ul class="mt-2 list-disc list-inside text-gray-600 space-y-1">
+                        <li>Reduce retrabajos y costos</li>
+                        <li>Acelera la detección de errores</li>
+                        <li>Aumenta la predictibilidad</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h4 class="font-bold text-lg text-[#2D4263]">Para el Equipo</h4>
+                    <ul class="mt-2 list-disc list-inside text-gray-600 space-y-1">
+                        <li>Clarifica expectativas</li>
+                        <li>Fomenta la estandarización</li>
+                        <li>Mejora la comunicación</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <h4 class="font-bold text-lg text-[#2D4263]">Para Stakeholders</h4>
+                    <ul class="mt-2 list-disc list-inside text-gray-600 space-y-1">
+                        <li>Aumenta la confianza</li>
+                        <li>Proporciona transparencia</li>
+                        <li>Asegura el valor entregado</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-bold text-center text-gray-700 mb-4">Evolución de la Calidad
+                        (Post-Implementación)</h3>
+                    <p class="text-center text-sm text-gray-500 mb-4">Este gráfico muestra la reducción de no
+                        conformidades a lo largo de los sprints, demostrando la efectividad de la matriz para mejorar la
+                        calidad de forma continua.</p>
+                    <div class="chart-container">
+                        <canvas id="qualityTrendChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-bold text-center text-gray-700 mb-4">Distribución de Hallazgos por Criterio
+                    </h3>
+                    <p class="text-center text-sm text-gray-500 mb-4">El análisis de hallazgos nos permite identificar
+                        áreas de mejora recurrentes y enfocar nuestros esfuerzos de capacitación y mejora de procesos.
+                    </p>
+                    <div class="chart-container">
+                        <canvas id="findingsDistributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="futuro" class="content-section">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-800">Próximos Pasos</h2>
+                <p class="mt-2 max-w-2xl mx-auto text-lg text-gray-600">Nuestro compromiso con la calidad es continuo.
+                    Estos son los siguientes pasos para consolidar y expandir el uso de la matriz.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-lg shadow-md text-center">
+                    <div class="text-4xl mb-4">👨‍🏫</div>
+                    <h3 class="text-xl font-bold text-gray-800">Capacitación Profunda</h3>
+                    <p class="mt-2 text-gray-600">Sesiones de formación detallada para todos los miembros del equipo
+                        sobre la aplicación práctica y matices de cada criterio de la matriz.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow-md text-center">
+                    <div class="text-4xl mb-4">⚙️</div>
+                    <h3 class="text-xl font-bold text-gray-800">Integración y Automatización</h3>
+                    <p class="mt-2 text-gray-600">Integrar la matriz en nuestras herramientas de gestión de proyectos
+                        (Jira, Confluence) para automatizar el seguimiento y la generación de reportes.</p>
+                </div>
+                <div class="bg-white p-8 rounded-lg shadow-md text-center">
+                    <div class="text-4xl mb-4">🔄</div>
+                    <h3 class="text-xl font-bold text-gray-800">Monitoreo y Ajuste</h3>
+                    <p class="mt-2 text-gray-600">Revisión trimestral de la efectividad de la matriz y sus criterios
+                        para ajustarla a las nuevas necesidades del proyecto y lecciones aprendidas.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="contactos" class="content-section">
+            <div class="text-center py-16">
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">Contáctanos</h2>
+                <p class="max-w-2xl mx-auto text-lg text-gray-600 mb-8">Estamos aquí para responder tus preguntas y
+                    escuchar tus comentarios. No dudes en ponerte en contacto con nosotros.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                        <div class="text-4xl mb-4">📧</div>
+                        <h3 class="text-xl font-bold text-gray-800">Correo Electrónico</h3>
+                        <p class="mt-2 text-gray-600">info@sofcal.com</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                        <div class="text-4xl mb-4">📞</div>
+                        <h3 class="text-xl font-bold text-gray-800">Teléfono</h3>
+                        <p class="mt-2 text-gray-600">+123 456 7890</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                        <div class="text-4xl mb-4">📍</div>
+                        <h3 class="text-xl font-bold text-gray-800">Dirección</h3>
+                        <p class="mt-2 text-gray-600">Calle Ficticia 123, Ciudad Ejemplo</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="encuesta" class="content-section">
+            <div class="text-center py-16">
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">Tu Opinión es Importante</h2>
+                <p class="max-w-2xl mx-auto text-lg text-gray-600 mb-8"> Ve al formulario para que podamos ayudar</p>
+                <a href="https://forms.office.com/Pages/ResponsePage.aspx?id=_TKsK6LZ2UCicjo1kg9WB9NO6zrw0n5EtRsAQVmt0jdURVJBTjk2VzNPR1E5UjAwODhLRVA0OFpOTS4u"
+                    target="_blank"
+                    class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-[#2D4263] hover:bg-[#1A2B40] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2D4263]">
+                    Ir a la Encuesta 🚀
+                </a>
+                <p class="mt-4 text-sm text-gray-500">Haz clic en el botón para ser redirigido a la encuesta.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-white border-t mt-16">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center text-gray-500">
+            <p>&copy; 2025 SofCal. Todos los derechos reservados.</p>
+            <p class="text-sm">Creado para asegurar la máxima calidad y transparencia.</p>
+        </div>
+    </footer>
+
+    <!-- Modal para respuestas de LLM -->
+    <div id="llmModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800 mb-4"></h3>
+            <div id="modalContent" class="text-gray-700 prose max-w-none">
+                <div class="flex justify-center items-center py-8">
+                    <div class="spinner"></div>
+                    <p class="ml-4 text-gray-600">Generando sugerencias...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const matrixData = [
+                {
+                    id: 'funcionalidad',
+                    name: '🧩 Funcionalidad',
+                    description: 'Verifica que el software cumple con los requisitos funcionales especificados, ejecutando las tareas para las que fue diseñado de manera correcta y completa.',
+                    metrics: ['% de casos de prueba superados', 'Número de requisitos cubiertos', 'Densidad de defectos funcionales'],
+                    scale: [
+                        { level: '1 - No Cumple', detail: 'Funcionalidades críticas fallan o no existen.' },
+                        { level: '3 - Cumple Parcialmente', detail: 'Funcionalidades principales operan, pero con errores menores.' },
+                        { level: '5 - Excelente', detail: 'Todas las funcionalidades operan según lo esperado, sin errores.' }
+                    ]
+                },
+                {
+                    id: 'usabilidad',
+                    name: '🖱️ Usabilidad',
+                    description: 'Evalúa la facilidad con la que los usuarios pueden aprender y utilizar el producto para alcanzar sus objetivos de manera efectiva, eficiente y satisfactoria.',
+                    metrics: ['Tiempo para completar tareas clave', 'Tasa de error del usuario', 'Puntuación en cuestionario SUS'],
+                    scale: [
+                        { level: '1 - Muy Difícil', detail: 'La interfaz es confusa, requiere guía constante.' },
+                        { level: '3 - Aceptable', detail: 'Los usuarios pueden navegar, pero con algunas dificultades.' },
+                        { level: '5 - Intuitivo', detail: 'La interfaz es clara, fácil de aprender y usar.' }
+                    ]
+                },
+                {
+                    id: 'rendimiento',
+                    name: '⚡ Rendimiento',
+                    description: 'Mide la capacidad de respuesta y estabilidad del sistema bajo una carga de trabajo particular. Se enfoca en tiempos de respuesta, uso de recursos y escalabilidad.',
+                    metrics: ['Tiempo de respuesta promedio (ms)', 'Uso de CPU/Memoria bajo carga', 'Transacciones por segundo (TPS)'],
+                    scale: [
+                        { level: '1 - Lento', detail: 'El sistema es notablemente lento, afectando la experiencia.' },
+                        { level: '3 - Adecuado', detail: 'El rendimiento es aceptable bajo cargas normales.' },
+                        { level: '5 - Óptimo', detail: 'El sistema es rápido y eficiente incluso bajo alta carga.' }
+                    ]
+                },
+                {
+                    id: 'seguridad',
+                    name: '🛡️ Seguridad',
+                    description: 'Asegura que el sistema protege la información y los datos contra accesos no autorizados, amenazas y vulnerabilidades, manteniendo la confidencialidad e integridad.',
+                    metrics: ['Número de vulnerabilidades críticas (CVEs)', 'Cumplimiento con OWASP Top 10', 'Tiempo para remediar vulnerabilidades'],
+                    scale: [
+                        { level: '1 - Inseguro', detail: 'Vulnerabilidades críticas expuestas y conocidas.' },
+                        { level: '3 - Básico', detail: 'Se aplican medidas de seguridad básicas, pero hay brechas.' },
+                        { level: '5 - Robusto', 'detail': 'Seguridad multicapa, protección proactiva y auditorías regulares.' }
+                    ]
+                },
+                {
+                    id: 'documentacion',
+                    name: '📚 Documentación',
+                    description: 'Evalúa la calidad, completitud y claridad de la documentación técnica y de usuario, asegurando que sea útil para desarrolladores, administradores y usuarios finales.',
+                    metrics: ['% de completitud de la documentación', 'Claridad (evaluación por pares)', 'Número de errores o ambigüedades'],
+                    scale: [
+                        { level: '1 - Inexistente', detail: 'La documentación falta o está completamente desactualizada.' },
+                        { level: '3 - Suficiente', detail: 'Existe documentación para las áreas clave, pero puede mejorar.' },
+                        { level: '5 - Completa y Clara', detail: 'Documentación exhaustiva, actualizada y fácil de entender.' }
+                    ]
+                }
+            ];
+
+            const processSteps = [
+                {
+                    icon: '1️⃣',
+                    title: 'Preparación',
+                    description: 'Se define el alcance de la evaluación y se seleccionan los criterios aplicables.'
+                },
+                {
+                    icon: '2️⃣',
+                    title: 'Ejecución',
+                    description: 'El equipo de QA o el responsable realiza las pruebas y mediciones correspondientes.'
+                },
+                {
+                    icon: '3️⃣',
+                    title: 'Registro',
+                    description: 'Los resultados se registran en la matriz, asignando un nivel a cada criterio.'
+                },
+                {
+                    icon: '4️⃣',
+                    title: 'Análisis',
+                    description: 'Se analizan los resultados para identificar no conformidades y áreas de mejora.'
+                },
+                {
+                    icon: '5️⃣',
+                    title: 'Acción',
+                    description: 'Se crea un plan de acción para corregir los problemas y se da feedback al equipo.'
+                }
+            ];
+
+
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.content-section');
+            const criteriaListContainer = document.getElementById('criteria-list');
+            const criteriaDetailsContainer = document.getElementById('criteria-details');
+            const processFlowContainer = document.getElementById('process-flow');
+
+            const llmModal = document.getElementById('llmModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+            const closeButton = document.querySelector('.close-button');
+
+            const showModal = (title, contentHtml) => {
+                modalTitle.textContent = title;
+                modalContent.innerHTML = contentHtml;
+                llmModal.style.display = 'flex';
+            };
+
+            const hideModal = () => {
+                llmModal.style.display = 'none';
+                modalContent.innerHTML = `
+            <div class="flex justify-center items-center py-8">
+                <div class="spinner"></div>
+                <p class="ml-4 text-gray-600">Generando sugerencias...</p>
+            </div>
+        `;
+            };
+
+            closeButton.addEventListener('click', hideModal);
+            window.addEventListener('click', (event) => {
+                if (event.target === llmModal) {
+                    hideModal();
+                }
+            });
+
+            const generateLLMSuggestion = async (prompt, title) => {
+                showModal(title, `
+            <div class="flex justify-center items-center py-8">
+                <div class="spinner"></div>
+                <p class="ml-4 text-gray-600">Generando sugerencias...</p>
+            </div>
+        `);
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        modalContent.innerHTML = `<p>${text}</p>`;
+                    } else {
+                        modalContent.innerHTML = '<p class="text-red-600">Error al generar sugerencias. Inténtelo de nuevo.</p>';
+                    }
+                } catch (error) {
+                    modalContent.innerHTML = `<p class="text-red-600">Error de conexión: ${error.message}.</p>`;
+                }
+            };
+
+            const renderMatrix = () => {
+                criteriaListContainer.innerHTML = matrixData.map(c => `
+            <div id="card-${c.id}" class="criterion-card bg-white p-6 rounded-lg shadow border-2 border-transparent hover:border-[#C86A3B] hover:shadow-xl">
+                <h3 class="text-xl font-bold text-gray-800">${c.name}</h3>
+            </div>
+        `).join('');
+
+                matrixData.forEach(criterion => {
+                    document.getElementById(`card-${criterion.id}`).addEventListener('click', () => {
+                        renderCriterionDetails(criterion);
+                        document.querySelectorAll('.criterion-card').forEach(card => card.classList.remove('active'));
+                        document.getElementById(`card-${criterion.id}`).classList.add('active');
+                    });
+                });
+
+                if (matrixData.length > 0) {
+                    renderCriterionDetails(matrixData[0]);
+                    document.getElementById(`card-${matrixData[0].id}`).classList.add('active');
+                }
+            };
+
+            const renderCriterionDetails = (criterion) => {
+                criteriaDetailsContainer.innerHTML = `
+            <h3 class="text-2xl font-bold text-[#C86A3B] mb-4">${criterion.name}</h3>
+            <p class="text-gray-600 mb-6">${criterion.description}</p>
+            <div class="mb-6">
+                <h4 class="font-semibold text-lg text-gray-700 mb-2">Métricas Clave</h4>
+                <ul class="list-disc list-inside text-gray-600 space-y-1">
+                    ${criterion.metrics.map(m => `<li>${m}</li>`).join('')}
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-semibold text-lg text-gray-700 mb-2">Escala de Evaluación</h4>
+                <div class="space-y-3">
+                    ${criterion.scale.map(s => `
+                        <div class="border-l-4 p-3 rounded-r-md ${s.level.startsWith('1') ? 'border-red-400 bg-red-50' : s.level.startsWith('3') ? 'border-yellow-400 bg-yellow-50' : 'border-green-400 bg-green-50'}">
+                            <p class="font-bold text-gray-800">${s.level}</p>
+                            <p class="text-sm text-gray-600">${s.detail}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <button id="generateSuggestionBtn" class="mt-8 w-full bg-[#C86A3B] text-white py-2 px-4 rounded-md hover:bg-[#A85A30] transition-colors flex items-center justify-center">
+                Generar Sugerencias de Mejora ✨
+            </button>
+        `;
+                document.getElementById('generateSuggestionBtn').addEventListener('click', () => {
+                    const prompt = `Genera 3 sugerencias de mejora concisas para el criterio de calidad "${criterion.name}" en un proyecto de desarrollo de software. Considera su descripción: "${criterion.description}".`;
+                    generateLLMSuggestion(prompt, `Sugerencias para ${criterion.name}`);
+                });
+            };
+
+            const renderProcess = () => {
+                processFlowContainer.innerHTML = processSteps.map((step, index) => `
+            <div class="flex flex-col items-center text-center p-4">
+                <div class="bg-[#2D4263] text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold shadow-lg flowchart-step">${step.icon}</div>
+                <h4 class="mt-4 font-bold text-lg text-gray-800">${step.title}</h4>
+                <p class="text-sm text-gray-600 max-w-xs">${step.description}</p>
+                <button data-step-index="${index}" class="optimize-step-btn mt-4 bg-gray-200 text-gray-700 py-1 px-3 rounded-md text-sm hover:bg-gray-300 transition-colors flex items-center justify-center">
+                    Optimizar Paso ✨
+                </button>
+            </div>
+            ${index < processSteps.length - 1 ? '<div class="flowchart-line w-full h-1 md:w-auto md:h-0 mt-4 md:mt-0"></div>' : ''}
+        `).join('');
+
+                document.querySelectorAll('.optimize-step-btn').forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        const stepIndex = event.target.dataset.stepIndex;
+                        const step = processSteps[stepIndex];
+                        const prompt = `Dame 3 consejos concisos para optimizar el paso del proceso de calidad "${step.title}" que se describe como: "${step.description}".`;
+                        generateLLMSuggestion(prompt, `Optimizar Paso: ${step.title}`);
+                    });
+                });
+            };
+
+
+            const showSection = (hash) => {
+                const targetId = hash.substring(1) || 'inicio';
+
+                sections.forEach(section => {
+                    if (section.id === targetId) {
+                        section.classList.add('active');
+                    } else {
+                        section.classList.remove('active');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    if (link.getAttribute('href') === `#${targetId}`) {
+                        link.classList.add('active');
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
+
+                if (targetId === 'impacto') {
+                    renderCharts();
+                }
+            };
+
+            let qualityTrendChartInstance = null;
+            let findingsDistributionChartInstance = null;
+
+            const renderCharts = () => {
+                const qualityTrendCtx = document.getElementById('qualityTrendChart').getContext('2d');
+                const findingsDistributionCtx = document.getElementById('findingsDistributionChart').getContext('2d');
+
+                if (qualityTrendChartInstance) qualityTrendChartInstance.destroy();
+                qualityTrendChartInstance = new Chart(qualityTrendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Sprint 4', 'Sprint 5'],
+                        datasets: [{
+                            label: 'No Conformidades Graves',
+                            data: [18, 11, 6, 3, 2],
+                            borderColor: '#C86A3B',
+                            backgroundColor: 'rgba(200, 106, 59, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+
+                if (findingsDistributionChartInstance) findingsDistributionChartInstance.destroy();
+                findingsDistributionChartInstance = new Chart(findingsDistributionCtx, {
+                    type: 'radar',
+                    data: {
+                        labels: matrixData.map(c => c.name.split(' ')[1]),
+                        datasets: [{
+                            label: 'Hallazgos por Criterio (Último Sprint)',
+                            data: [2, 5, 3, 1, 4],
+                            backgroundColor: 'rgba(45, 66, 99, 0.2)',
+                            borderColor: '#2D4263',
+                            pointBackgroundColor: '#2D4263'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { r: { beginAtZero: true, suggestedMax: 6 } }
+                    }
+                });
+            };
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const hash = e.target.getAttribute('href');
+                    history.pushState(null, null, hash);
+                    showSection(hash);
+                });
+            });
+
+            window.addEventListener('popstate', () => {
+                showSection(window.location.hash);
+            });
+
+            renderMatrix();
+            renderProcess();
+            showSection(window.location.hash || '#inicio');
+        });
+    </script>
+</body>
+
+</html>
